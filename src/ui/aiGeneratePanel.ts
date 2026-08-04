@@ -1,15 +1,22 @@
 import {
   type DiagramGenerationMode,
   getSessionOpenAIKey,
-  OPENAI_DIAGRAM_MODEL,
   setSessionOpenAIKey,
 } from "../ai/openaiDiagram";
-import { getAIEndpoint, setAIEndpoint } from "../ai/aiEndpoint";
+import {
+  getAIEndpoint,
+  getAIModel,
+  setAIEndpoint,
+  setAIModel,
+} from "../ai/aiEndpoint";
+import { listAIModels } from "../ai/listModels";
 import { h } from "./dom";
 
 export interface AIGenerateRequest {
+  /** Optional API key; omitted (blank) for local endpoints. */
   apiKey: string;
   endpoint: string;
+  model: string;
   prompt: string;
   mode: DiagramGenerationMode;
   signal: AbortSignal;
@@ -20,6 +27,7 @@ export class AIGeneratePanel {
   private form!: HTMLFormElement;
   private keyInput!: HTMLInputElement;
   private endpointInput!: HTMLInputElement;
+  private modelSelect!: HTMLSelectElement;
   private promptInput!: HTMLTextAreaElement;
   private generateBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
@@ -27,9 +35,10 @@ export class AIGeneratePanel {
   private errorEl!: HTMLDivElement;
   private abort: AbortController | null = null;
   private restoreFocusEl: HTMLElement | null = null;
-  private invalidField: HTMLInputElement | HTMLTextAreaElement | null = null;
+  private invalidField: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null = null;
   private mode: DiagramGenerationMode = "generate";
   private canModify = false;
+  private modelLoadSeq = 0;
 
   constructor(
     private root: HTMLElement,
@@ -48,6 +57,7 @@ export class AIGeneratePanel {
 
     const savedKey = getSessionOpenAIKey();
     const savedEndpoint = getAIEndpoint();
+    const savedModel = getAIModel();
     this.closeBtn = h("button", {
       class: "ai-panel__close",
       type: "button",
@@ -60,7 +70,7 @@ export class AIGeneratePanel {
       class: "ai-panel__input",
       type: "password",
       value: savedKey,
-      placeholder: "sk-...",
+      placeholder: "sk-... (optional for local)",
       autocomplete: "off",
       spellcheck: false,
       "aria-describedby": "ai-panel-error",
@@ -73,7 +83,15 @@ export class AIGeneratePanel {
       placeholder: "https://api.openai.com/v1/responses",
       spellcheck: false,
       "aria-describedby": "ai-panel-error",
+      onchange: () => void this.reloadModels(),
     });
+
+    this.modelSelect = h("select", {
+      class: "ai-panel__input ai-panel__select",
+      "aria-describedby": "ai-panel-error",
+      value: savedModel,
+    }) as HTMLSelectElement;
+    this.modelSelect.append(h("option", { value: savedModel }, savedModel));
 
     this.promptInput = h(
       "textarea",
@@ -88,7 +106,7 @@ export class AIGeneratePanel {
     this.generateBtn = h(
       "button",
       { class: "btn btn--accent", type: "submit" },
-      `Generate with ${OPENAI_DIAGRAM_MODEL}`,
+      this.submitLabel(savedModel),
     );
 
     this.modeButtons = {
@@ -118,14 +136,20 @@ export class AIGeneratePanel {
       h(
         "label",
         { class: "ai-panel__field" },
-        h("span", null, "OpenAI API key"),
-        this.keyInput,
+        h("span", null, "Endpoint"),
+        this.endpointInput,
       ),
       h(
         "label",
         { class: "ai-panel__field" },
-        h("span", null, "Endpoint"),
-        this.endpointInput,
+        h("span", null, "Model"),
+        this.modelSelect,
+      ),
+      h(
+        "label",
+        { class: "ai-panel__field" },
+        h("span", null, "API key (optional)"),
+        this.keyInput,
       ),
       h(
         "label",
@@ -148,7 +172,7 @@ export class AIGeneratePanel {
       h(
         "header",
         { class: "ai-panel__header" },
-        h("div", null, h("h2", null, "Generate Diagram"), h("p", null, "Your key is sent directly from this browser to OpenAI and kept for this session only.")),
+        h("div", null, h("h2", null, "Generate Diagram"), h("p", null, "Your key is sent directly from this browser to the endpoint and kept for this session only.")),
         this.closeBtn,
       ),
       this.form,
@@ -165,7 +189,32 @@ export class AIGeneratePanel {
     this.root.appendChild(backdrop);
     this.el = backdrop;
     this.syncMode();
-    requestAnimationFrame(() => (savedKey ? this.promptInput : this.keyInput).focus());
+    void this.reloadModels();
+    requestAnimationFrame(() => (savedKey ? this.promptInput : this.endpointInput).focus());
+  }
+
+  /**
+   * Query the endpoint's /models route and repopulate the dropdown, keeping the
+   * currently selected/persisted model selected when present. Failures leave the
+   * dropdown as-is (the persisted model still works).
+   */
+  private async reloadModels(): Promise<void> {
+    const seq = ++this.modelLoadSeq;
+    const endpoint = this.endpointInput?.value.trim();
+    const current = this.modelSelect.value;
+    if (!endpoint) return;
+    try {
+      const ids = await listAIModels(endpoint);
+      if (seq !== this.modelLoadSeq || !this.modelSelect || !this.el) return;
+      const options = ids.length ? ids : [current || getAIModel()];
+      this.modelSelect.textContent = "";
+      for (const id of options) {
+        this.modelSelect.append(h("option", { value: id }, id));
+      }
+      if (current && ids.includes(current)) this.modelSelect.value = current;
+    } catch {
+      // Keep the current persisted model; the dropdown stays usable.
+    }
   }
 
   close(force = false): void {
@@ -217,12 +266,8 @@ export class AIGeneratePanel {
 
     const apiKey = this.keyInput.value.trim();
     const endpoint = this.endpointInput.value.trim();
+    const model = this.modelSelect.value.trim();
     const prompt = this.promptInput.value.trim();
-    if (!apiKey) {
-      this.showFieldError(this.keyInput, "Enter an OpenAI API key.");
-      this.keyInput.focus();
-      return;
-    }
     if (!endpoint) {
       this.showFieldError(this.endpointInput, "Enter an endpoint URL.");
       this.endpointInput.focus();
@@ -231,6 +276,11 @@ export class AIGeneratePanel {
     if (!/^https?:\/\//i.test(endpoint)) {
       this.showFieldError(this.endpointInput, "Endpoint must be an http(s) URL.");
       this.endpointInput.focus();
+      return;
+    }
+    if (!model) {
+      this.showFieldError(this.modelSelect, "Choose a model.");
+      this.modelSelect.focus();
       return;
     }
     if (!prompt) {
@@ -248,6 +298,7 @@ export class AIGeneratePanel {
 
     setSessionOpenAIKey(apiKey);
     setAIEndpoint(endpoint);
+    setAIModel(model);
     this.showError("");
     const controller = new AbortController();
     this.abort = controller;
@@ -256,6 +307,7 @@ export class AIGeneratePanel {
       const applied = await this.onGenerate({
         apiKey,
         endpoint,
+        model,
         prompt,
         mode: this.mode,
         signal: controller.signal,
@@ -275,13 +327,15 @@ export class AIGeneratePanel {
   private setLoading(loading: boolean): void {
     this.form.setAttribute("aria-busy", String(loading));
     this.keyInput.disabled = loading;
+    this.endpointInput.disabled = loading;
+    this.modelSelect.disabled = loading;
     this.promptInput.disabled = loading;
     this.modeButtons.generate.disabled = loading;
     this.modeButtons.modify.disabled = loading || !this.canModify;
     this.generateBtn.disabled = loading;
     this.closeBtn.title = loading ? "Cancel generation" : "Close";
     this.closeBtn.setAttribute("aria-label", loading ? "Cancel generation" : "Close AI generator");
-    this.generateBtn.textContent = loading ? "Working..." : this.submitLabel();
+    this.generateBtn.textContent = loading ? "Working..." : this.submitLabel(this.modelSelect?.value);
   }
 
   private showError(message: string): void {
@@ -293,7 +347,7 @@ export class AIGeneratePanel {
     this.errorEl.classList.toggle("is-visible", !!message);
   }
 
-  private showFieldError(field: HTMLInputElement | HTMLTextAreaElement, message: string): void {
+  private showFieldError(field: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, message: string): void {
     this.showError(message);
     this.invalidField = field;
     field.setAttribute("aria-invalid", "true");
@@ -314,11 +368,11 @@ export class AIGeneratePanel {
     this.promptInput.placeholder = this.mode === "modify"
       ? "Describe the change. Example: Add Redis between the API and database, and label cache hits."
       : "Describe the diagram you want. Example: A browser hits a CDN, API gateway, auth service, worker queue, Postgres, and Redis cache.";
-    this.generateBtn.textContent = this.submitLabel();
+    this.generateBtn.textContent = this.submitLabel(this.modelSelect?.value);
   }
 
-  private submitLabel(): string {
-    return `${this.mode === "modify" ? "Modify" : "Generate"} with ${OPENAI_DIAGRAM_MODEL}`;
+  private submitLabel(model?: string): string {
+    return `${this.mode === "modify" ? "Modify" : "Generate"} with ${model || "model"}`;
   }
 
   private trapFocus(e: KeyboardEvent): void {
@@ -326,8 +380,9 @@ export class AIGeneratePanel {
       this.closeBtn,
       this.modeButtons.generate,
       this.modeButtons.modify,
-      this.keyInput,
       this.endpointInput,
+      this.modelSelect,
+      this.keyInput,
       this.promptInput,
       this.generateBtn,
     ].filter(

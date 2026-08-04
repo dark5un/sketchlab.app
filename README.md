@@ -26,10 +26,14 @@ npm run preview   # serve the production build
 The "Generate or modify with AI" panel (AI button in the editor) sends your prompt to
 an OpenAI-compatible `/v1/responses` endpoint to produce `GeneratedGraph` JSON.
 
-- **Endpoint** is configurable and persisted in `localStorage` (key `sketchlab:ai-endpoint`),
+- **Endpoint** is configurable and persisted in `localStorage` (`sketchlab:ai-endpoint`),
   defaulting to `https://api.openai.com/v1/responses`. Point it at a local OpenAI-compatible
-  server (e.g. Ollama / llama.cpp / vLLM) by entering its URL in the panel next to the API key.
-- **API key** is sent directly from the browser and kept for the session only.
+  server (e.g. Ollama / llama.cpp / vLLM) by entering its URL in the panel.
+- **Model** is a dropdown populated from the endpoint's `/models` route, persisted
+  in `localStorage` (`sketchlab:ai-model`). The selected model is sent in the request.
+- **API key** is optional and persisted for the session only; it is omitted from the
+  request (no `Authorization` header) when left blank, which is typical for local servers.
+  CORS on the local server must allow the app origin (e.g. Ollama: `OLLAMA_ORIGINS=...`).
 
 ## Claude Code skill (generate diagrams into Sketch Lab)
 

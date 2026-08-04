@@ -228,19 +228,22 @@ async function readErrorMessage(res: Response): Promise<string> {
 }
 
 export async function generateDiagramWithOpenAI(opts: {
-  apiKey: string;
+  /** Optional API key. Omitted entirely when blank (for local endpoints). */
+  apiKey?: string;
   prompt: string;
   mode?: DiagramGenerationMode;
   currentBoard?: Board;
   signal?: AbortSignal;
   /** OpenAI-compatible endpoint, e.g. a local server. Defaults to OpenAI. */
   endpoint?: string;
+  /** Model name to request. Defaults to the configured/persisted model. */
+  model?: string;
 }): Promise<GeneratedGraph> {
-  const apiKey = opts.apiKey.trim();
+  const apiKey = opts.apiKey?.trim() ?? "";
   const prompt = opts.prompt.trim();
   const mode = opts.mode ?? "generate";
   const endpoint = (opts.endpoint ?? DEFAULT_AI_ENDPOINT).trim();
-  if (!apiKey) throw new OpenAIDiagramError("Enter an OpenAI API key.");
+  const model = (opts.model ?? OPENAI_DIAGRAM_MODEL).trim() || OPENAI_DIAGRAM_MODEL;
   if (!prompt) throw new OpenAIDiagramError(
     mode === "modify" ? "Describe how to modify the diagram." : "Describe the diagram you want to generate.",
   );
@@ -248,17 +251,17 @@ export async function generateDiagramWithOpenAI(opts: {
     throw new OpenAIDiagramError("There is no current diagram to modify.");
   }
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
   let res: Response;
   try {
     res = await fetch(endpoint, {
       method: "POST",
       signal: opts.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: OPENAI_DIAGRAM_MODEL,
+        model,
         input: promptContext(prompt, mode, opts.currentBoard),
         max_output_tokens: 4096,
         text: {

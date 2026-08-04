@@ -1,10 +1,12 @@
-// Lightweight, localStorage-backed AI endpoint preference. Read synchronously
-// at open/build time so the AI panel can prefill it, following the
-// inputPrefs.ts pattern. Kept minimal: only the endpoint is configurable.
+// Lightweight, localStorage-backed AI connection preferences. Read synchronously
+// so the AI panel can prefill them, following the inputPrefs.ts pattern.
+// Kept minimal: endpoint and model are the two configurable connection values.
 
 export const DEFAULT_AI_ENDPOINT = "https://api.openai.com/v1/responses";
+export const DEFAULT_AI_MODEL = "gpt-5.5";
 
 const AI_ENDPOINT_KEY = "sketchlab:ai-endpoint";
+const AI_MODEL_KEY = "sketchlab:ai-model";
 
 function readString(key: string, fallback: string): string {
   try {
@@ -30,4 +32,13 @@ export function getAIEndpoint(): string {
 
 export function setAIEndpoint(endpoint: string): void {
   writeString(AI_ENDPOINT_KEY, endpoint.trim());
+}
+
+/** The model name selected for the AI endpoint. */
+export function getAIModel(): string {
+  return readString(AI_MODEL_KEY, DEFAULT_AI_MODEL);
+}
+
+export function setAIModel(model: string): void {
+  writeString(AI_MODEL_KEY, model.trim());
 }
