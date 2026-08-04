@@ -10,6 +10,7 @@ import {
   setAIModel,
 } from "../ai/aiEndpoint";
 import { listAIModels } from "../ai/listModels";
+import { toModelsUrl } from "../ai/endpointPath";
 import { h } from "./dom";
 
 export interface AIGenerateRequest {
@@ -80,8 +81,9 @@ export class AIGeneratePanel {
       class: "ai-panel__input",
       type: "url",
       value: savedEndpoint,
-      placeholder: "https://api.openai.com/v1/chat/completions",
+      placeholder: "http://127.0.0.1:11435",
       spellcheck: false,
+      inputmode: "url",
       "aria-describedby": "ai-panel-error",
       onchange: () => void this.reloadModels(),
     });
@@ -203,7 +205,7 @@ export class AIGeneratePanel {
     const current = this.modelSelect.value || getAIModel();
     if (!endpoint) return;
     try {
-      const ids = await listAIModels(endpoint);
+      const ids = await listAIModels(toModelsUrl(endpoint));
       if (seq !== this.modelLoadSeq || !this.modelSelect || !this.el) return;
       // Dedupe and always keep the current/persisted selection available.
       const seen = new Set<string>();
@@ -374,8 +376,8 @@ export class AIGeneratePanel {
     this.generateBtn.textContent = this.submitLabel(this.modelSelect?.value);
   }
 
-  private submitLabel(model?: string): string {
-    return `${this.mode === "modify" ? "Modify" : "Generate"} with ${model || "model"}`;
+  private submitLabel(_model?: string): string {
+    return this.mode === "modify" ? "Modify" : "Generate";
   }
 
   private trapFocus(e: KeyboardEvent): void {

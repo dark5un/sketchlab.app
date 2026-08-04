@@ -2,6 +2,7 @@ import { ICONS_SORTED } from "../render/icons";
 import { parseGeneratedGraph, type GeneratedGraph } from "../state/generatedGraph";
 import type { Board, ShapeKind } from "../state/types";
 import { DEFAULT_AI_ENDPOINT } from "./aiEndpoint";
+import { toChatCompletionsUrl } from "./endpointPath";
 
 export const OPENAI_DIAGRAM_MODEL = "gpt-5.5";
 
@@ -201,7 +202,9 @@ export async function generateDiagramWithOpenAI(opts: {
   const apiKey = opts.apiKey?.trim() ?? "";
   const prompt = opts.prompt.trim();
   const mode = opts.mode ?? "generate";
-  const endpoint = (opts.endpoint ?? DEFAULT_AI_ENDPOINT).trim();
+  // Accept either a bare host ("127.0.0.1:11435") or a full endpoint URL; the
+  // app resolves the chat-completions path so the user never types API internals.
+  const endpoint = toChatCompletionsUrl(opts.endpoint ?? DEFAULT_AI_ENDPOINT);
   const model = (opts.model ?? OPENAI_DIAGRAM_MODEL).trim() || OPENAI_DIAGRAM_MODEL;
   if (!prompt) throw new OpenAIDiagramError(
     mode === "modify" ? "Describe how to modify the diagram." : "Describe the diagram you want to generate.",
