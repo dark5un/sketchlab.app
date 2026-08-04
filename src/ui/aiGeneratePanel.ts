@@ -4,10 +4,12 @@ import {
   OPENAI_DIAGRAM_MODEL,
   setSessionOpenAIKey,
 } from "../ai/openaiDiagram";
+import { getAIEndpoint, setAIEndpoint } from "../ai/aiEndpoint";
 import { h } from "./dom";
 
 export interface AIGenerateRequest {
   apiKey: string;
+  endpoint: string;
   prompt: string;
   mode: DiagramGenerationMode;
   signal: AbortSignal;
@@ -17,6 +19,7 @@ export class AIGeneratePanel {
   private el: HTMLDivElement | null = null;
   private form!: HTMLFormElement;
   private keyInput!: HTMLInputElement;
+  private endpointInput!: HTMLInputElement;
   private promptInput!: HTMLTextAreaElement;
   private generateBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
@@ -44,6 +47,7 @@ export class AIGeneratePanel {
     this.mode = this.canModify ? "modify" : "generate";
 
     const savedKey = getSessionOpenAIKey();
+    const savedEndpoint = getAIEndpoint();
     this.closeBtn = h("button", {
       class: "ai-panel__close",
       type: "button",
@@ -58,6 +62,15 @@ export class AIGeneratePanel {
       value: savedKey,
       placeholder: "sk-...",
       autocomplete: "off",
+      spellcheck: false,
+      "aria-describedby": "ai-panel-error",
+    });
+
+    this.endpointInput = h("input", {
+      class: "ai-panel__input",
+      type: "url",
+      value: savedEndpoint,
+      placeholder: "https://api.openai.com/v1/responses",
       spellcheck: false,
       "aria-describedby": "ai-panel-error",
     });
@@ -107,6 +120,12 @@ export class AIGeneratePanel {
         { class: "ai-panel__field" },
         h("span", null, "OpenAI API key"),
         this.keyInput,
+      ),
+      h(
+        "label",
+        { class: "ai-panel__field" },
+        h("span", null, "Endpoint"),
+        this.endpointInput,
       ),
       h(
         "label",
@@ -197,10 +216,21 @@ export class AIGeneratePanel {
     if (this.abort) return;
 
     const apiKey = this.keyInput.value.trim();
+    const endpoint = this.endpointInput.value.trim();
     const prompt = this.promptInput.value.trim();
     if (!apiKey) {
       this.showFieldError(this.keyInput, "Enter an OpenAI API key.");
       this.keyInput.focus();
+      return;
+    }
+    if (!endpoint) {
+      this.showFieldError(this.endpointInput, "Enter an endpoint URL.");
+      this.endpointInput.focus();
+      return;
+    }
+    if (!/^https?:\/\//i.test(endpoint)) {
+      this.showFieldError(this.endpointInput, "Endpoint must be an http(s) URL.");
+      this.endpointInput.focus();
       return;
     }
     if (!prompt) {
@@ -217,6 +247,7 @@ export class AIGeneratePanel {
     }
 
     setSessionOpenAIKey(apiKey);
+    setAIEndpoint(endpoint);
     this.showError("");
     const controller = new AbortController();
     this.abort = controller;
@@ -224,6 +255,7 @@ export class AIGeneratePanel {
     try {
       const applied = await this.onGenerate({
         apiKey,
+        endpoint,
         prompt,
         mode: this.mode,
         signal: controller.signal,
@@ -295,6 +327,7 @@ export class AIGeneratePanel {
       this.modeButtons.generate,
       this.modeButtons.modify,
       this.keyInput,
+      this.endpointInput,
       this.promptInput,
       this.generateBtn,
     ].filter(

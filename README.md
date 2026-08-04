@@ -21,6 +21,16 @@ npm run build     # type-check + production build to dist/
 npm run preview   # serve the production build
 ```
 
+## AI diagram generation
+
+The "Generate or modify with AI" panel (AI button in the editor) sends your prompt to
+an OpenAI-compatible `/v1/responses` endpoint to produce `GeneratedGraph` JSON.
+
+- **Endpoint** is configurable and persisted in `localStorage` (key `sketchlab:ai-endpoint`),
+  defaulting to `https://api.openai.com/v1/responses`. Point it at a local OpenAI-compatible
+  server (e.g. Ollama / llama.cpp / vLLM) by entering its URL in the panel next to the API key.
+- **API key** is sent directly from the browser and kept for the session only.
+
 ## Claude Code skill (generate diagrams into Sketch Lab)
 
 Agents can emit Sketch Lab `GeneratedGraph` JSON and open it with a `?g=` URL.

@@ -1,11 +1,11 @@
 import { ICONS_SORTED } from "../render/icons";
 import { parseGeneratedGraph, type GeneratedGraph } from "../state/generatedGraph";
 import type { Board, ShapeKind } from "../state/types";
+import { DEFAULT_AI_ENDPOINT } from "./aiEndpoint";
 
 export const OPENAI_DIAGRAM_MODEL = "gpt-5.5";
 
 const SESSION_KEY = "sketchlab:openai-api-key";
-const RESPONSES_URL = "https://api.openai.com/v1/responses";
 const CONTEXT_MAX_NODES = 48;
 const CONTEXT_MAX_EDGES = 96;
 const CONTEXT_MAX_LAYERS = 48;
@@ -233,10 +233,13 @@ export async function generateDiagramWithOpenAI(opts: {
   mode?: DiagramGenerationMode;
   currentBoard?: Board;
   signal?: AbortSignal;
+  /** OpenAI-compatible endpoint, e.g. a local server. Defaults to OpenAI. */
+  endpoint?: string;
 }): Promise<GeneratedGraph> {
   const apiKey = opts.apiKey.trim();
   const prompt = opts.prompt.trim();
   const mode = opts.mode ?? "generate";
+  const endpoint = (opts.endpoint ?? DEFAULT_AI_ENDPOINT).trim();
   if (!apiKey) throw new OpenAIDiagramError("Enter an OpenAI API key.");
   if (!prompt) throw new OpenAIDiagramError(
     mode === "modify" ? "Describe how to modify the diagram." : "Describe the diagram you want to generate.",
@@ -247,7 +250,7 @@ export async function generateDiagramWithOpenAI(opts: {
 
   let res: Response;
   try {
-    res = await fetch(RESPONSES_URL, {
+    res = await fetch(endpoint, {
       method: "POST",
       signal: opts.signal,
       headers: {
