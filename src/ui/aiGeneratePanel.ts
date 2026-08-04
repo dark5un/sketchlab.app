@@ -80,7 +80,7 @@ export class AIGeneratePanel {
       class: "ai-panel__input",
       type: "url",
       value: savedEndpoint,
-      placeholder: "https://api.openai.com/v1/responses",
+      placeholder: "https://api.openai.com/v1/chat/completions",
       spellcheck: false,
       "aria-describedby": "ai-panel-error",
       onchange: () => void this.reloadModels(),
@@ -89,7 +89,6 @@ export class AIGeneratePanel {
     this.modelSelect = h("select", {
       class: "ai-panel__input ai-panel__select",
       "aria-describedby": "ai-panel-error",
-      value: savedModel,
     }) as HTMLSelectElement;
     this.modelSelect.append(h("option", { value: savedModel }, savedModel));
 
@@ -201,17 +200,21 @@ export class AIGeneratePanel {
   private async reloadModels(): Promise<void> {
     const seq = ++this.modelLoadSeq;
     const endpoint = this.endpointInput?.value.trim();
-    const current = this.modelSelect.value;
+    const current = this.modelSelect.value || getAIModel();
     if (!endpoint) return;
     try {
       const ids = await listAIModels(endpoint);
       if (seq !== this.modelLoadSeq || !this.modelSelect || !this.el) return;
-      const options = ids.length ? ids : [current || getAIModel()];
+      // Dedupe and always keep the current/persisted selection available.
+      const seen = new Set<string>();
+      const options: string[] = [];
+      if (current) { seen.add(current); options.push(current); }
+      for (const id of ids) if (!seen.has(id)) { seen.add(id); options.push(id); }
       this.modelSelect.textContent = "";
       for (const id of options) {
         this.modelSelect.append(h("option", { value: id }, id));
       }
-      if (current && ids.includes(current)) this.modelSelect.value = current;
+      this.modelSelect.value = current;
     } catch {
       // Keep the current persisted model; the dropdown stays usable.
     }

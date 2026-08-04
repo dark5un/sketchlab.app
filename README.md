@@ -24,11 +24,12 @@ npm run preview   # serve the production build
 ## AI diagram generation
 
 The "Generate or modify with AI" panel (AI button in the editor) sends your prompt to
-an OpenAI-compatible `/v1/responses` endpoint to produce `GeneratedGraph` JSON.
+an OpenAI-compatible Chat Completions endpoint (`/v1/chat/completions`) to produce
+`GeneratedGraph` JSON.
 
 - **Endpoint** is configurable and persisted in `localStorage` (`sketchlab:ai-endpoint`),
-  defaulting to `https://api.openai.com/v1/responses`. Point it at a local OpenAI-compatible
-  server (e.g. Ollama / llama.cpp / vLLM) by entering its URL in the panel.
+  defaulting to `https://api.openai.com/v1/chat/completions`. Point it at a local
+  OpenAI-compatible server (e.g. Ollama / llama.cpp / vLLM) by entering its URL in the panel.
 - **Model** is a dropdown populated from the endpoint's `/models` route, persisted
   in `localStorage` (`sketchlab:ai-model`). The selected model is sent in the request.
 - **API key** is optional and persisted for the session only; it is omitted from the

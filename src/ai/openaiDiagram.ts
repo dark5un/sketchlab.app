@@ -14,67 +14,6 @@ const CONTEXT_MAX_NAME = 80;
 
 export type DiagramGenerationMode = "generate" | "modify";
 
-const GENERATED_GRAPH_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    name: { type: "string" },
-    layers: {
-      type: "array",
-      maxItems: 48,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          name: { type: "string", minLength: 1 },
-          color: {
-            type: "string",
-            pattern: "^#[0-9a-fA-F]{6}$",
-          },
-        },
-        required: ["name", "color"],
-      },
-    },
-    nodes: {
-      type: "array",
-      minItems: 1,
-      maxItems: 48,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string", minLength: 1 },
-          label: { type: "string", minLength: 1 },
-          kind: { type: "string", enum: ["rect", "circle", "icon", "text"] },
-          icon: { type: "string" },
-          color: {
-            type: "string",
-            pattern: "^#[0-9a-fA-F]{6}$",
-          },
-          layer: { type: "integer", minimum: 0, maximum: 47 },
-        },
-        required: ["id", "label", "kind", "icon", "color", "layer"],
-      },
-    },
-    edges: {
-      type: "array",
-      maxItems: 96,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          from: { type: "string", minLength: 1 },
-          to: { type: "string", minLength: 1 },
-          label: { type: "string" },
-          directed: { type: "boolean" },
-        },
-        required: ["from", "to", "label", "directed"],
-      },
-    },
-  },
-  required: ["name", "layers", "nodes", "edges"],
-} as const;
-
 export class OpenAIDiagramError extends Error {
   constructor(
     message: string,
@@ -193,8 +132,28 @@ function readRecord(value: unknown): Record<string, unknown> {
 
 function extractOutputText(payload: unknown): string {
   const root = readRecord(payload);
-  if (typeof root.output_text === "string") return root.output_text;
 
+  // Chat Completions: choices[].message.content
+  const choices = root.choices;
+  if (Array.isArray(choices)) {
+    for (const choice of choices) {
+      const choiceRecord = readRecord(choice);
+      const message = choiceRecord.message;
+      if (typeof message !== "object" || message === null || Array.isArray(message)) continue;
+      const messageRecord = message as Record<string, unknown>;
+      const content = messageRecord.content;
+      if (typeof content === "string" && content.trim()) return content.trim();
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          const partRecord = readRecord(part);
+          if (typeof partRecord.text === "string" && partRecord.text.trim()) return partRecord.text.trim();
+        }
+      }
+    }
+  }
+
+  // Responses API compatibility: top-level output_text or output array.
+  if (typeof root.output_text === "string" && root.output_text.trim()) return root.output_text.trim();
   const output = root.output;
   if (Array.isArray(output)) {
     for (const item of output) {
@@ -262,16 +221,18 @@ export async function generateDiagramWithOpenAI(opts: {
       headers,
       body: JSON.stringify({
         model,
-        input: promptContext(prompt, mode, opts.currentBoard),
-        max_output_tokens: 4096,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "sketch_lab_generated_graph",
-            strict: true,
-            schema: GENERATED_GRAPH_SCHEMA,
+        messages: [
+          {
+            role: "system",
+            content: "You generate Sketch Lab architecture diagrams. Return only JSON matching the requested structure. Do not include markdown code fences.",
           },
-        },
+          {
+            role: "user",
+            content: promptContext(prompt, mode, opts.currentBoard),
+          },
+        ],
+        max_tokens: 4096,
+        response_format: { type: "json_object" },
       }),
     });
   } catch (err) {

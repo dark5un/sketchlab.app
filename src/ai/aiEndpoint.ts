@@ -2,7 +2,7 @@
 // so the AI panel can prefill them, following the inputPrefs.ts pattern.
 // Kept minimal: endpoint and model are the two configurable connection values.
 
-export const DEFAULT_AI_ENDPOINT = "https://api.openai.com/v1/responses";
+export const DEFAULT_AI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 export const DEFAULT_AI_MODEL = "gpt-5.5";
 
 const AI_ENDPOINT_KEY = "sketchlab:ai-endpoint";
