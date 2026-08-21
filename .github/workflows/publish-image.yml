@@ -1,0 +1,55 @@
+name: Publish Container Image
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'launch-pad.toml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: v0.5.0)'
+        required: false
+        default: 'v0.5.0'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/dark5un/sketchlab
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate tags
+        id: meta
+        run: |
+          TAG="${{ github.event.inputs.tag || 'v0.5.0' }}"
+          echo "tags=${{ env.IMAGE_NAME }}:${TAG},${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+          echo "version=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.description=Sketch Lab - diagramming SPA
