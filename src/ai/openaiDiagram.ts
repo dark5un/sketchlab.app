@@ -227,15 +227,25 @@ export async function generateDiagramWithOpenAI(opts: {
         messages: [
           {
             role: "system",
-            content: "You generate Sketch Lab architecture diagrams. Return only JSON matching the requested structure. Do not include markdown code fences.",
+            content:
+              "You generate Sketch Lab architecture diagrams. Return only JSON matching the requested structure. Do not include markdown code fences. " +
+              "Keep the diagram compact: at most 30 nodes. Group related components into single nodes instead of listing each one, and keep node labels and notes short. " +
+              "Never call tools; answer with the JSON object directly.",
           },
           {
             role: "user",
             content: promptContext(prompt, mode, opts.currentBoard),
           },
         ],
-        max_tokens: 4096,
+        // Reasoning models spend part of this budget on thinking tokens before
+        // the JSON appears; 4096 truncated large diagrams on local servers.
+        max_tokens: 16384,
         response_format: { type: "json_object" },
+        // Local OpenAI-compatible servers (vLLM/llama.cpp/Strata convention)
+        // ignore unknown keys; thinking-capable models otherwise spend the
+        // budget on reasoning and sometimes detour into tool calls instead of
+        // returning the JSON object.
+        chat_template_kwargs: { enable_thinking: false },
       }),
     });
   } catch (err) {
