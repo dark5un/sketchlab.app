@@ -2,8 +2,16 @@
 // so the AI panel can prefill them, following the inputPrefs.ts pattern.
 // Kept minimal: endpoint and model are the two configurable connection values.
 
-export const DEFAULT_AI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-export const DEFAULT_AI_MODEL = "gpt-5.5";
+// Same-origin default: the app's own nginx proxies /v1/ to the local model
+// server (Strata) and injects its API key server-side, so the browser needs
+// no key and no cross-origin permission. Falls back to the hosted OpenAI
+// endpoint where there is no page origin (e.g. node test runs).
+export const OPENAI_FALLBACK_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+export const DEFAULT_AI_ENDPOINT =
+  typeof location !== "undefined" && location.origin && /^https?:/.test(location.origin)
+    ? `${location.origin.replace(/\/+$/, "")}/v1`
+    : OPENAI_FALLBACK_ENDPOINT;
+export const DEFAULT_AI_MODEL = "qwen3.8-flash-next-iq3_s";
 
 const AI_ENDPOINT_KEY = "sketchlab:ai-endpoint";
 const AI_MODEL_KEY = "sketchlab:ai-model";

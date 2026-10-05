@@ -1,0 +1,36 @@
+# Rendered by the nginx-unprivileged entrypoint via envsubst at container start
+# into /etc/nginx/conf.d/ai-proxy.conf (the stock default.conf is removed in the
+# image; this file replaces it).
+#
+# Same-origin AI proxy: the SPA calls /v1/... on its own origin and nginx
+# forwards to the local OpenAI-compatible server, injecting the API key
+# server-side so it never reaches the browser.
+#
+# Env (set in the container):
+#   STRATA_UPSTREAM  e.g. http://systemd-strata:8080
+#   STRATA_API_KEY   bearer token for the upstream
+
+server {
+    listen       8080;
+    server_name  localhost;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+
+    location /v1/ {
+        proxy_pass ${STRATA_UPSTREAM}/v1/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Authorization "Bearer ${STRATA_API_KEY}";
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        client_max_body_size 10m;
+    }
+
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+}
