@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:mcp": "esbuild mcp/core.ts --bundle --format=esm --platform=node --outfile=mcp/dist/core.mjs",
     "test": "vitest run",
+    "mcp": "node mcp/server.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

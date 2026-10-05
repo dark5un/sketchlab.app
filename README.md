@@ -37,6 +37,36 @@ an OpenAI-compatible Chat Completions endpoint to produce `GeneratedGraph` JSON.
   request (no `Authorization` header) when left blank, which is typical for local servers.
   CORS on the local server must allow the app origin (e.g. Ollama: `OLLAMA_ORIGINS=...`).
 
+## MCP server (agents build diagrams with their own research)
+
+`mcp/server.mjs` is a zero-dependency stdio MCP server. It exposes three
+tools — `sketchlab_icons` (valid icon keys for nodes), `sketchlab_validate`
+(runs the app's own `parseGeneratedGraph`, same caps and icon matching as the
+browser), and `sketchlab_diagram` (validate + return a ready-to-open
+`?g=<encoded>` URL). The agent does the research and composition; the server
+guarantees the payload the browser will accept.
+
+Build the validation bundle once, then point any MCP client at it:
+
+```bash
+npm run build:mcp
+```
+
+Hermes Agent (`~/.hermes/config.yaml`):
+
+```yaml
+mcp_servers:
+  sketchlab:
+    command: node
+    args: ["/path/to/sketchlab.app/mcp/server.mjs"]
+    env:
+      SKETCHLAB_URL: "http://127.0.0.1:3102"
+```
+
+Claude Code (`~/.claude.json` `mcpServers` block) and Strata's web app
+(`mcp_servers` in its run config, see serve/mcp.py) use the same
+`command`/`args`/`env` shape.
+
 ## Claude Code skill (generate diagrams into Sketch Lab)
 
 Agents can emit Sketch Lab `GeneratedGraph` JSON and open it with a `?g=` URL.

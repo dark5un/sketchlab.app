@@ -1,5 +1,6 @@
 node_modules
 dist
+mcp/dist
 *.local
 .DS_Store
 
