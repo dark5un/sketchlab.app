@@ -9,6 +9,13 @@
 # Env (set in the container):
 #   STRATA_UPSTREAM  e.g. http://systemd-strata:8080
 #   STRATA_API_KEY   bearer token for the upstream
+#   NGINX_LOCAL_RESOLVERS  set by the entrypoint from /etc/resolv.conf
+#                    (NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 in the image)
+#
+# The upstream is resolved per request (resolver + a variable in proxy_pass),
+# not at startup: the model server is started on demand, and nginx refuses to
+# start when an upstream host does not resolve yet. /v1/ answers 502 while the
+# upstream is down.
 
 server {
     listen       8080;
@@ -20,7 +27,11 @@ server {
     }
 
     location /v1/ {
-        proxy_pass ${STRATA_UPSTREAM}/v1/;
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+        set $ai_upstream ${STRATA_UPSTREAM};
+        # A variable proxy_pass without a URI forwards the request URI as is
+        # (/v1/...).
+        proxy_pass $ai_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Authorization "Bearer ${STRATA_API_KEY}";

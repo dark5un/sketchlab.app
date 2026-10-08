@@ -12,4 +12,6 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # this template with envsubst at start; needs STRATA_UPSTREAM + STRATA_API_KEY.
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY nginx/ai-proxy.conf.template /etc/nginx/templates/default.conf.template
+# Export NGINX_LOCAL_RESOLVERS (the container's DNS) for the template's resolver.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 8080
